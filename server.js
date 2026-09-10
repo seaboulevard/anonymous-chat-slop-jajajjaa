@@ -6,7 +6,6 @@ const io = require('socket.io')(http);
 app.use(express.static(__dirname + '/public'));
 
 io.on('connection', (socket) => {
-    // Assign a random guest username so no email/signup is needed
     const username = 'Guest_' + Math.floor(Math.random() * 10000);
     
     socket.on('chat message', (msg) => {
