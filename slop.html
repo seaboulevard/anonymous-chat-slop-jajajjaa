@@ -1,0 +1,429 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>jhm</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      height: 100vh;
+    }
+
+    .layout {
+      display: flex;
+      height: 100vh;
+      background: #111;
+      color: #eee;
+    }
+
+    .chat {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      padding: 10px;
+    }
+
+    .sidebar {
+      width: 200px;
+      border-left: 1px solid #444;
+      background: #1a1a1a;
+      padding: 10px;
+    }
+
+    #messages {
+      background: #000;
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      border: 1px solid #444;
+    }
+
+    #messages li {
+      padding: 4px 6px;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    input, button {
+      background: #222;
+      color: #eee;
+      border: 1px solid #555;
+    }
+
+    #username-overlay {
+      position: fixed;
+      inset: 0;
+      background: black;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .username-box {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      text-align: center;
+    }
+
+    #requests {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="username-overlay">
+  <div class="username-box">
+    <h2 id="overlay-text">Enter Coupon</h2>
+    <input type="text" id="username-input" placeholder="Username" />
+    <button onclick="submitUsername()">Enter</button>
+  </div>
+</div>
+
+<div class="layout">
+
+  <div class="chat" id="chat">
+    <h1>uugwemubwem</h1>
+    <h2>hecho por matrixstar656_5</h2>
+
+    <ul id="messages"></ul>
+
+    <div class="input-row">
+      <input id="message" autocomplete="off" />
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <h3>Online</h3>
+    <ul id="users"></ul>
+
+    <h3>Requests</h3>
+    <ul id="requests"></ul>
+  </div>
+
+</div>
+
+<script>
+const socket = io();
+
+let username = '';
+let joined = false;
+
+const chat = document.getElementById('chat');
+const overlay = document.getElementById('username-overlay');
+const overlayText = document.getElementById('overlay-text');
+
+// Prevent duplicate joins
+socket.on('connect', () => {
+  if (username) {
+    socket.emit('join', username);
+  }
+});
+
+// ===== STATES =====
+
+socket.on('waiting', () => {
+  overlayText.textContent = 'Checking if youre gonna get the next day sale...';
+});
+
+socket.on('approved', () => {
+  overlay.style.display = 'none';
+  chat.style.display = 'flex';
+});
+
+socket.on('rejected', () => {
+  overlayText.textContent = 'Rejected. Try another username.';
+});
+
+socket.on('you_are_host', () => {
+  overlay.style.display = 'none';
+  chat.style.display = 'flex';
+  document.getElementById('requests').style.display = 'block';
+});
+
+// ===== HOST REQUEST UI =====
+
+socket.on('approval_request', ({ sid, username }) => {
+  const list = document.getElementById('requests');
+
+  const li = document.createElement('li');
+  li.textContent = username + ' ';
+
+  const approveBtn = document.createElement('button');
+  approveBtn.textContent = '✔';
+  approveBtn.onclick = () => {
+    socket.emit('approve_user', sid);
+    li.remove();
+  };
+
+  const rejectBtn = document.createElement('button');
+  rejectBtn.textContent = '✖';
+  rejectBtn.onclick = () => {
+    socket.emit('reject_user', sid);
+    li.remove();
+  };
+
+  li.appendChild(approveBtn);
+  li.appendChild(rejectBtn);
+  list.appendChild(li);
+});
+
+// ===== USERNAME =====
+
+function submitUsername() {
+  const input = document.getElementById('username-input');
+  const name = input.value.trim();
+
+  if (name) {
+    username = name;
+    socket.emit('join', username);
+    joined = true;
+  }
+}
+
+// ===== CHAT =====
+
+function sendMessage() {
+  const input = document.getElementById('message');
+  const text = input.value.trim();
+
+  if (text !== '') {
+    socket.send(username + ': ' + text);
+    input.value = '';
+  }
+}
+
+socket.on('message', function(msg) {
+  const messages = document.getElementById('messages');
+  const item = document.createElement('li');
+
+  const imageRegex = /(https?:\/\/[^\s]+)/gi;
+
+  let lastIndex = 0;
+  let matches = [...msg.matchAll(imageRegex)];
+
+  if (matches.length > 0) {
+    matches.forEach(match => {
+      const url = match[0];
+
+      const textBefore = msg.slice(lastIndex, match.index);
+      if (textBefore.trim()) {
+        const span = document.createElement('span');
+        span.textContent = textBefore;
+        item.appendChild(span);
+      }
+
+      const isYouTube = /(?:youtube\.com|youtu\.be)/i.test(url);
+      const isImage = /\.(png|jpg|jpeg|gif|webp)(\/|\?|$)/i.test(url);
+      const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url);
+
+      if (isYouTube) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.textContent = url;
+        link.target = '_blank';
+        link.style.display = 'block';
+        link.style.marginTop = '4px';
+        item.appendChild(link);
+      }
+
+      else if (isImage) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.referrerPolicy = "no-referrer";
+        img.style.maxWidth = '100%';
+        img.style.display = 'block';
+        img.style.marginTop = '4px';
+        img.style.borderRadius = '6px';
+        img.loading = 'lazy';
+        img.style.cursor = 'default';
+
+        img.onload = () => {
+          const aspectRatio = img.naturalWidth / img.naturalHeight;
+
+          if (aspectRatio < 0.75) {
+            img.style.maxWidth = '25%';
+          } else if (aspectRatio < 1.3) {
+            img.style.maxWidth = '37%';
+          } else if (aspectRatio < 2.3) {
+            img.style.maxWidth = '47%';
+          } else {
+            img.style.maxWidth = '65%';
+          }
+
+          messages.scrollTop = messages.scrollHeight;
+        };
+      
+        img.onerror = () => {
+          const fallback = document.createElement('a');
+          fallback.href = url;
+          fallback.textContent = url;
+          fallback.target = '_blank';
+          fallback.style.display = 'block';
+          fallback.style.marginTop = '4px';
+          item.replaceChild(fallback, img);
+        };
+
+        item.appendChild(img);
+      }
+
+      else if (isVideo) {
+        const video = document.createElement('video');
+        video.src = url;
+        video.autoplay = true;
+        video.loop = true;
+        video.playsInline = true;
+        video.controls = false;
+        video.style.maxWidth = '100%';
+        video.style.display = 'block';
+        video.style.marginTop = '4px';
+        video.style.borderRadius = '6px';
+
+        video.onloadedmetadata = () => {
+          const aspectRatio = video.videoWidth / video.videoHeight;
+
+          if (aspectRatio < 0.75) {
+            video.style.maxWidth = '25%';
+          } else if (aspectRatio < 1.3) {
+            video.style.maxWidth = '37%';
+          } else if (aspectRatio < 2.3) {
+            video.style.maxWidth = '47%';
+          } else {
+            video.style.maxWidth = '65%';
+          }
+
+          const hasAudio =
+            video.mozHasAudio ||
+            Boolean(video.webkitAudioDecodedByteCount) ||
+            (video.audioTracks && video.audioTracks.length > 0);
+
+          if (video.duration > 15 || hasAudio) {
+            video.controls = true;
+            video.autoplay = false;
+            video.loop = false;
+            video.muted = false;
+          } else {
+            video.controls = false;
+            video.autoplay = true;
+            video.loop = true;
+            video.muted = true;
+            video.play();
+
+            setTimeout(() => {
+              const chromeDetectedAudio =
+                Boolean(video.webkitAudioDecodedByteCount) &&
+                video.webkitAudioDecodedByteCount > 0;
+
+              if (chromeDetectedAudio) {
+                video.pause();
+                video.controls = true;
+                video.autoplay = false;
+                video.loop = false;
+                video.muted = false;
+                video.currentTime = 0;
+              }
+            }, 700);
+          }
+
+          messages.scrollTop = messages.scrollHeight;
+        };
+
+        item.appendChild(video);
+      }
+
+      else {
+        const testImg = document.createElement('img');
+        testImg.src = url;
+
+        testImg.onload = () => {
+          const img = document.createElement('img');
+          img.src = url;
+          const aspectRatio = img.naturalWidth / img.naturalHeight;
+
+          if (aspectRatio < 0.75) {
+            img.style.maxWidth = '25%';
+          } else if (aspectRatio < 1.3) {
+            img.style.maxWidth = '37%';
+          } else if (aspectRatio < 2.3) {
+            img.style.maxWidth = '47%';
+          } else {
+            img.style.maxWidth = '65%';
+          }
+          img.style.display = 'block';
+          img.style.marginTop = '4px';
+          img.style.borderRadius = '6px';
+          img.style.cursor = 'default';
+          item.appendChild(img);
+          messages.scrollTop = messages.scrollHeight;
+        };
+
+        testImg.onerror = () => {
+          const link = document.createElement('a');
+          link.href = url;
+          link.textContent = url;
+          link.target = '_blank';
+          link.style.display = 'block';
+          link.style.marginTop = '4px';
+          item.appendChild(link);
+        };
+      }
+      lastIndex = match.index + url.length;
+    });
+
+    const remaining = msg.slice(lastIndex);
+    if (remaining.trim()) {
+      const span = document.createElement('span');
+      span.textContent = remaining;
+      item.appendChild(span);
+    }
+
+  } else {
+    item.textContent = msg;
+  }
+
+  messages.appendChild(item);
+  messages.scrollTop = messages.scrollHeight;
+});
+
+socket.on('user_list', function(list) {
+  const users = document.getElementById('users');
+  users.innerHTML = '';
+
+  list.forEach(u => {
+    const li = document.createElement('li');
+    li.textContent = u;
+    users.appendChild(li);
+  });
+});
+
+// Enter key support
+document.getElementById('message').addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendMessage();
+});
+
+document.getElementById('username-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitUsername();
+});
+</script>
+
+</body>
+</html>
+
