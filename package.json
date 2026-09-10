@@ -1,3 +1,18 @@
-"scripts": {
-  "start": "node server.js"
+{
+  "name": "goyslop chatroom 500",
+  "version": "1.0.0",
+  "description": "A brief overview of what this application does.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "author": "Jane Doe",
+  "license": "not me lol"
 }
